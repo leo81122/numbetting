@@ -22,6 +22,6 @@
 
 ---
 
-| proposeTaker refound
-| proposeMaker 超时未揭晓，奖金自动归 B
-| 判断 A 是否作弊，作弊则没收 A 的出资
+- proposeTaker refound
+- proposeMaker 超时未揭晓，奖金自动归 B
+- 判断 A 是否作弊，作弊则没收 A 的出资
