@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 contract Betting {
     address internal admin;
+    uint256 private constant FIRST_REVEAL_TIMEOUT = 3 days; //第一个揭晓答案者揭晓后可以直接拿走奖金的时间
 
     enum STATUS {
         WAIT_TO_START,
@@ -20,6 +21,8 @@ contract Betting {
         bytes32 proposeHashTaker;
         uint256 proposeNumTaker;
         uint256 betValue;
+        address firstRevealer;
+        uint256 firstRevealTime;
         address winner;
         STATUS status;
     }
@@ -31,6 +34,7 @@ contract Betting {
     event REVEAL(string, string); //proposeName, maker/taker
     event GET_WINNER(string, address); //proposeName, winner
     event WINNER_WITHDRAW(string, address); //proposeName, winner
+    event TIMEOUT_WITHDRAW(string, address); //proposeName, winner
 
     constructor() {
         admin = msg.sender;
@@ -106,6 +110,8 @@ contract Betting {
         }
         if (proposeInstance.status == STATUS.WAIT_TO_REVEAL) {
             proposeInstance.status = STATUS.WAIT_TO_REVEAL_HALF;
+            proposeInstance.firstRevealer = msg.sender;
+            proposeInstance.firstRevealTime = block.timestamp;
         }
 
         emit REVEAL(_proposeName, "MAKER");
@@ -139,6 +145,8 @@ contract Betting {
         }
         if (proposeInstance.status == STATUS.WAIT_TO_REVEAL) {
             proposeInstance.status = STATUS.WAIT_TO_REVEAL_HALF;
+            proposeInstance.firstRevealer = msg.sender;
+            proposeInstance.firstRevealTime = block.timestamp;
         }
 
         emit REVEAL(_proposeName, "TAKER");
@@ -179,8 +187,12 @@ contract Betting {
     /**
      * Winner提现
      */
-    function withDraw(string calldata _proposeName) external {
+    function winnerWithdraw(string calldata _proposeName) external {
         propose storage proposeInstance = proposeList[_proposeName];
+        require(
+            proposeInstance.status == STATUS.WAIT_TO_WITHDRAW,
+            "no winner yet"
+        );
         require(msg.sender == proposeInstance.winner, "not winner");
 
         payable(msg.sender).transfer(proposeInstance.betValue);
@@ -188,6 +200,32 @@ contract Betting {
         delete proposeList[_proposeName];
 
         emit WINNER_WITHDRAW(_proposeName, msg.sender);
+    }
+
+    /**
+     * 时间锁到期提现
+     */
+    function timeoutWithdraw(string calldata _proposeName) external {
+        propose storage proposeInstance = proposeList[_proposeName];
+        require(
+            proposeInstance.status == STATUS.WAIT_TO_REVEAL_HALF,
+            "not body reveal or both reveal"
+        );
+        require(
+            msg.sender == proposeInstance.firstRevealer,
+            "not first revealer"
+        );
+        require(
+            block.timestamp >=
+                proposeInstance.firstRevealTime + FIRST_REVEAL_TIMEOUT,
+            "not enough time"
+        );
+
+        payable(msg.sender).transfer(proposeInstance.betValue);
+
+        delete proposeList[_proposeName];
+
+        emit TIMEOUT_WITHDRAW(_proposeName, msg.sender);
     }
 
     /**
