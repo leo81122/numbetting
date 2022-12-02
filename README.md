@@ -21,5 +21,3 @@
 ---
 
 - proposeTaker refound
-- 超时自动赎回
-- 判断 A 是否作弊，作弊则没收 A 的出资
